@@ -1,0 +1,93 @@
+name: Release desktop app
+
+# Crea los instaladores de escritorio (macOS .dmg, Windows .exe, Linux .AppImage).
+# - Al subir una etiqueta vX.Y.Z: los publica en la GitHub Release de esa etiqueta.
+# - Lanzado a mano (workflow_dispatch): solo los deja como artefactos del workflow.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Una sola tarea crea la release, para que los tres sistemas no choquen al subir.
+  release:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Crear la release si no existe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "La release $GITHUB_REF_NAME ya existe"
+            exit 0
+          fi
+          cat > notes.md <<'EOF'
+          Foco para escritorio: tus sesiones y vídeos se guardan en tu ordenador (Documentos/Foco).
+
+          | Sistema | Descarga |
+          |---|---|
+          | macOS (Apple Silicon: M1, M2, M3…) | `Foco-*-mac-arm64.dmg` |
+          | macOS (Intel) | `Foco-*-mac-x64.dmg` |
+          | Windows 10/11 | `Foco-*-windows-setup.exe` |
+          | Linux | `Foco-*-linux-x86_64.AppImage` |
+
+          La app no está firmada: la primera vez el sistema avisará. Cómo abrirla: https://github.com/DavidSmarandescu/Foco#app-de-escritorio
+          EOF
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "Foco ${GITHUB_REF_NAME#v}" --notes-file notes.md
+
+  build:
+    needs: release
+    # También corre cuando `release` se salta (lanzado a mano, sin etiqueta).
+    if: ${{ !failure() && !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: --mac
+          - os: windows-latest
+            target: --win
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests
+        if: runner.os == 'Linux'
+        run: npm test
+      - run: npm run build
+      - name: Empaquetar
+        shell: bash
+        run: npx electron-builder ${{ matrix.target }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foco-${{ runner.os }}
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*.AppImage
+          if-no-files-found: error
+      - name: Subir a la release
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(release/*.dmg release/*.exe release/*.AppImage)
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber

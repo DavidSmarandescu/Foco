@@ -2,7 +2,7 @@
 
 > Graba tus sesiones de estudio con la webcam, llévate un vídeo acelerado con la hora sobreimpresa y no rompas la racha. Todo en tu dispositivo, sin conexión.
 
-**Demo:** https://davidsmarandescu.github.io/Foco/
+**Demo:** https://davidsmarandescu.github.io/Foco/ · **App de escritorio** (macOS, Windows, Linux): [descargar](https://github.com/DavidSmarandescu/Foco/releases/latest)
 
 ![Sesión en curso](docs/screenshots/escritorio-grabando.png)
 
@@ -35,6 +35,34 @@ Los vídeos de estudio en cámara rápida (*study with me*, *timelapse*) son una
 - **Funciona sin red.** Un service worker precachea toda la app, incluido el runtime de visión y las fuentes, en la primera visita. Después funciona en modo avión.
 - **Copias de seguridad en JSON** (sesiones, rachas y ajustes) y botón para pedir almacenamiento persistente (`navigator.storage.persist()`) y que el navegador no borre los datos.
 
+## App de escritorio
+
+En la web, los datos viven en el navegador: si borras los datos del sitio (por ejemplo, al borrar las cookies), se pierden. La app de escritorio es la misma Foco, pero **guarda todo en tu ordenador**.
+
+**Descarga** la última versión en [Releases](https://github.com/DavidSmarandescu/Foco/releases/latest):
+
+| Sistema | Archivo |
+| --- | --- |
+| macOS con Apple Silicon (M1, M2, M3…) | `Foco-x.y.z-mac-arm64.dmg` |
+| macOS con Intel | `Foco-x.y.z-mac-x64.dmg` |
+| Windows 10/11 | `Foco-x.y.z-windows-setup.exe` |
+| Linux | `Foco-x.y.z-linux-x86_64.AppImage` |
+
+### Primera apertura
+
+La app no está firmada con un certificado de pago, así que el sistema avisa la primera vez. Solo hay que hacerlo una vez:
+
+- **macOS:** abre el `.dmg` y arrastra Foco a Aplicaciones. Al abrirla, macOS dirá que no puede verificar al desarrollador: pulsa **Hecho**, ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta el aviso de Foco y pulsa **Abrir igualmente**. Si dice que la app «está dañada», ejecuta en Terminal `xattr -cr /Applications/Foco.app` y vuelve a abrirla. Después, acepta el permiso de cámara.
+- **Windows:** si aparece «Windows protegió su PC» (SmartScreen), pulsa **Más información → Ejecutar de todas formas** y sigue el instalador.
+- **Linux:** da permiso de ejecución y ábrela: `chmod +x Foco-*.AppImage && ./Foco-*.AppImage`.
+
+### Dónde se guardan tus datos
+
+- **Carpeta de Foco:** `Documentos/Foco` (se puede cambiar en Ajustes). Ahí se guarda cada vídeo como MP4 en `videos/` y tus sesiones, rachas y ajustes en `foco-datos.json`, que se actualiza tras cada cambio.
+- **Si reinstalas Foco** o cambias de usuario, la app detecta esa carpeta y ofrece **restaurar** sesiones y vídeos. Si eliges «Empezar de cero», la copia anterior se conserva como `foco-datos-anterior-<fecha>.json`.
+- **Borrar una sesión en Foco no borra su MP4** de la carpeta: los vídeos son tuyos.
+- Además, la app mantiene la cámara rápida aunque la ventana quede detrás de otra y la pantalla encendida mientras estudias.
+
 ## Decisiones técnicas
 
 | Decisión | Por qué |
@@ -45,8 +73,11 @@ Los vídeos de estudio en cámara rápida (*study with me*, *timelapse*) son una
 | **MediaPipe BlazeFace + movimiento** | Mirar hacia abajo para escribir puede despistar al detector de caras. Sumar el movimiento evita pausas falsas. El modo «Solo cara» es más estricto. |
 | **Tolerancia y reclasificación** de la ausencia | Un fallo puntual del detector no pausa nada. Cuando sí pausa, el tramo desde la última vez que se te vio pasa de «estudiado» a «ausente», así el tiempo es honesto. |
 | **Días locales** en rachas y calendario | Una sesión a las 00:30 cuenta para el día del calendario del usuario, y las rachas no se rompen con el cambio de hora (hay tests de ambos). |
-| **Lógica pura con tests** (`src/lib`) | Rachas, agregados, reloj de estudio, presencia, formatos y validación de ajustes y copias tienen tests en Vitest (32). |
+| **Lógica pura con tests** (`src/lib`) | Rachas, agregados, reloj de estudio, presencia, formatos, validación de ajustes y copias, y las escrituras en disco de la app de escritorio tienen tests en Vitest (39). |
 | **Vite + React + TypeScript**, sin backend | Se despliega como web estática en GitHub Pages con un workflow que pasa los tests antes de publicar. |
+| **Electron para escritorio**, con la misma web | Lleva el mismo Chromium con el que está probada la web (cámara, WebCodecs, MediaPipe), así que no hay sorpresas por motor. La web se sirve desde un protocolo propio (`app://foco`) con CSP estricta. La página no tiene acceso a Node (`contextIsolation`, `sandbox`): solo a un puente mínimo cuyas escrituras se validan y se limitan a la carpeta de Foco. |
+| **IndexedDB sigue siendo el almacén principal** en escritorio | Es el código ya probado. El disco es un espejo (MP4 + JSON) que sobrevive a reinstalar y que el usuario puede abrir y copiar. |
+| **Instaladores en GitHub Actions** | Al subir una etiqueta `vX.Y.Z`, se compilan el `.dmg`, el `.exe` y el `.AppImage` en macOS, Windows y Linux y se publican en la release. |
 
 ### Estructura
 
@@ -56,7 +87,9 @@ src/
   media/        cámara, superposición, detector de presencia, codificador, cierre de sesión
   storage/      IndexedDB y copias de seguridad
   components/   vistas: Estudiar, Portal, Ajustes, calendario
-scripts/        copia del runtime de MediaPipe a public/ e iconos
+  desktop/      puente con la app de escritorio y espejo en disco
+electron/       proceso principal, preload y utilidades de disco (app de escritorio)
+scripts/        copia del runtime de MediaPipe, iconos y pruebas de extremo a extremo
 ```
 
 ## Modelo de negocio
@@ -82,17 +115,36 @@ npm test
 npm run build
 ```
 
+App de escritorio en desarrollo (Vite + Electron con recarga):
+
+```bash
+npm run desktop:dev
+```
+
+Instalador para tu sistema, en `release/`:
+
+```bash
+npm run desktop:build
+```
+
+Para publicar una versión con instaladores para los tres sistemas, sube una etiqueta (actualiza antes `version` en `package.json`):
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
 La cámara solo funciona en `localhost` o HTTPS. En el portal, **«Ver con datos de ejemplo»** carga 4 meses de sesiones ficticias para enseñar las rachas y el calendario sin esperar.
 
 ## Limitaciones conocidas
 
-- **Pestaña en segundo plano.** Los navegadores ralentizan los temporizadores de las pestañas ocultas, así que se pueden perder fotogramas si cambias de pestaña durante mucho tiempo. El tiempo estudiado se calcula con marcas de tiempo y sigue siendo correcto. Foco mantiene la pantalla encendida con la Wake Lock API.
+- **App de escritorio sin firmar.** macOS y Windows avisan en la primera apertura (ver arriba). Firmar y notarizar requiere cuentas de pago de Apple (99 $/año) y un certificado de Windows. Tampoco hay actualizaciones automáticas: las versiones nuevas se descargan desde Releases.
+- **Pestaña en segundo plano (web).** Los navegadores ralentizan los temporizadores de las pestañas ocultas, así que se pueden perder fotogramas si cambias de pestaña durante mucho tiempo. El tiempo estudiado se calcula con marcas de tiempo y sigue siendo correcto. Foco mantiene la pantalla encendida con la Wake Lock API.
 - **Detección de presencia.** Es heurística: con «Cara + movimiento», una mascota o una cortina moviéndose pueden contar como presencia. Con «Solo cara», mirar muy abajo puede pausar. La pausa tolerante (20 s, configurable) suaviza ambos casos.
 - **Margen antes de pausar.** Los fotogramas capturados durante el margen de tolerancia (antes de dar a alguien por ausente) se quedan en el vídeo, aunque ese tiempo se reclasifique como ausencia.
 - **Recuperación tras un cierre.** El progreso se guarda cada 5 s y en cada fotograma, así que un cierre inesperado puede perder los últimos segundos de cronómetro, nunca los fotogramas ya guardados.
 - **Sesiones que cruzan la medianoche.** Cuentan para el día en que empezaron.
 - **Primera visita.** Descarga unos 15 MB, sobre todo el runtime de visión, para poder funcionar sin red después. En navegadores sin SIMD en WASM, el detector se descarga la primera vez que se usa.
-- **Copias de seguridad.** No incluyen los vídeos (pesan demasiado). Se descargan uno a uno desde el portal.
+- **Copias de seguridad (web).** No incluyen los vídeos (pesan demasiado). Se descargan uno a uno desde el portal. En la app de escritorio los vídeos ya están en la carpeta de Foco.
 
 ## Roadmap
 
