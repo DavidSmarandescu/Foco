@@ -6,6 +6,7 @@ import { formatDuration } from '../lib/time';
 import { downloadBlob } from '../lib/download';
 import { deleteAll, deleteSession, importSessions, type SessionRecord } from '../storage/db';
 import { makeBackup, parseBackup } from '../storage/backup';
+import { desktop, DOWNLOAD_URL } from '../desktop/bridge';
 
 interface Props {
   settings: Settings;
@@ -23,6 +24,7 @@ const fmtBytes = (n: number) =>
 export function SettingsView({ settings, setSettings, sessions, onChange, notify }: Props) {
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
+  const [dataDir, setDataDir] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refreshStorage = async () => {
@@ -38,6 +40,22 @@ export function SettingsView({ settings, setSettings, sessions, onChange, notify
   useEffect(() => {
     refreshStorage();
   }, [sessions]);
+
+  useEffect(() => {
+    desktop?.info().then((i) => setDataDir(i.dataDir), () => setDataDir(null));
+  }, []);
+
+  const changeDir = async () => {
+    try {
+      const dir = await desktop!.chooseDataDir();
+      if (!dir) return;
+      setDataDir(dir);
+      onChange(); // vuelve a escribir foco-datos.json en la carpeta nueva
+      notify('Carpeta cambiada. Los vídeos guardados se han copiado allí.');
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'No se pudo usar esa carpeta.');
+    }
+  };
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings({ ...settings, [key]: value });
 
@@ -72,7 +90,10 @@ export function SettingsView({ settings, setSettings, sessions, onChange, notify
   };
 
   const wipe = async () => {
-    if (!confirm('¿Borrar TODAS las sesiones y vídeos de este dispositivo? No se puede deshacer.')) return;
+    const msg = desktop
+      ? '¿Borrar TODAS las sesiones de Foco? Los vídeos ya guardados en tu carpeta no se tocan.'
+      : '¿Borrar TODAS las sesiones y vídeos de este dispositivo? No se puede deshacer.';
+    if (!confirm(msg)) return;
     await deleteAll();
     onChange();
     notify('Todo borrado.');
@@ -190,11 +211,38 @@ export function SettingsView({ settings, setSettings, sessions, onChange, notify
         <header className="card-head">
           <h2>Tus datos</h2>
         </header>
-        <p className="privacy">
-          <Shield width={18} height={18} />
-          Todo se guarda en este navegador. Foco no tiene servidores: si borras los datos del sitio o cambias de
-          dispositivo, tus sesiones no se pueden recuperar salvo con una copia.
-        </p>
+        {desktop ? (
+          <>
+            <p className="privacy">
+              <Shield width={18} height={18} />
+              Todo se guarda en tu ordenador. Cada vídeo se copia como archivo y tus sesiones, en foco-datos.json, en
+              esta carpeta. Si reinstalas Foco, la app te ofrecerá recuperarlas desde aquí.
+            </p>
+            {dataDir && <p className="path-box">{dataDir}</p>}
+            <div className="button-row">
+              <button className="btn btn-quiet" onClick={() => desktop!.openDataDir()}>
+                Abrir carpeta
+              </button>
+              <button className="btn btn-quiet" onClick={changeDir}>
+                Cambiar carpeta
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="privacy">
+              <Shield width={18} height={18} />
+              Tus datos viven en este navegador. Foco no tiene servidores: si borras los datos del sitio (al borrar las
+              cookies, por ejemplo) o cambias de dispositivo, se pierden. Haz copias o usa la app de escritorio, que los
+              guarda en una carpeta de tu ordenador.
+            </p>
+            <div className="button-row">
+              <a className="btn btn-quiet" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                Descargar app de escritorio
+              </a>
+            </div>
+          </>
+        )}
         {storage && (
           <div className="storage">
             <div className="meter" aria-hidden="true">
@@ -207,7 +255,7 @@ export function SettingsView({ settings, setSettings, sessions, onChange, notify
           </div>
         )}
         <div className="button-row">
-          {persisted !== true && (
+          {!desktop && persisted !== true && (
             <button className="btn btn-quiet" onClick={persist}>
               Proteger mis datos
             </button>

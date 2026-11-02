@@ -164,6 +164,11 @@ main {
   color: var(--muted);
 }
 
+.download-pill:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
 .streak-pill {
   color: var(--muted);
 }
@@ -708,6 +713,14 @@ main {
   color: var(--muted);
 }
 
+.note a {
+  color: var(--accent);
+}
+
+a.btn {
+  text-decoration: none;
+}
+
 .error-text {
   color: var(--danger);
   font-size: 14px;
@@ -733,6 +746,7 @@ main {
 .banner span {
   font-size: 14px;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .banner-quiet {
@@ -1337,6 +1351,18 @@ main {
   margin-top: 16px;
 }
 
+.path-box {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;
@@ -1403,6 +1429,10 @@ main {
 @media (max-width: 640px) {
   main {
     padding: 16px 16px 40px;
+  }
+  /* La app de escritorio no aplica en el móvil. */
+  .download-pill {
+    display: none;
   }
   .topbar {
     flex-wrap: wrap;

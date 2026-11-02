@@ -1,4 +1,5 @@
-// Todo vive en IndexedDB del navegador: metadatos, fotogramas y vídeos.
+// Todo vive en IndexedDB del navegador: metadatos, fotogramas y vídeos. En la
+// app de escritorio, además, se copia a una carpeta del disco (desktop/sync.ts).
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { PresenceMode } from '../lib/settings';
 
@@ -28,6 +29,8 @@ export interface SessionRecord {
   /** Miniatura JPEG pequeña como data URL. */
   thumb?: string;
   video?: VideoInfo;
+  /** App de escritorio: nombre del vídeo dentro de la carpeta de Foco. */
+  file?: string;
   /** Datos de ejemplo generados para la demo. */
   demo?: boolean;
 }

@@ -1,4 +1,4 @@
-# Genera los iconos PNG de la PWA (anillo ámbar sobre fondo casi negro).
+# Genera los iconos de la PWA y de la app de escritorio (anillo ámbar sobre fondo casi negro).
 from PIL import Image, ImageDraw
 import os
 
@@ -29,3 +29,16 @@ icon(192).save(os.path.join(OUT, 'icon-192.png'))
 icon(512).save(os.path.join(OUT, 'icon-512.png'))
 icon(512, maskable=True).save(os.path.join(OUT, 'icon-maskable-512.png'))
 icon(180, radius_ratio=0).save(os.path.join(OUT, 'apple-touch-icon.png'))
+
+# App de escritorio: electron-builder toma build/icon.*; la ventana en Linux, electron/icon.png.
+ROOT = os.path.join(os.path.dirname(__file__), '..')
+BUILD = os.path.join(ROOT, 'build')
+os.makedirs(BUILD, exist_ok=True)
+big = icon(1024, radius_ratio=0.225)
+big.save(os.path.join(BUILD, 'icon.png'))
+# macOS: el icono ocupa ~80 % del lienzo, con margen transparente como los nativos.
+mac = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0))
+mac.paste(icon(824, radius_ratio=0.225), (100, 100))
+mac.save(os.path.join(BUILD, 'icon.icns'))
+icon(256).save(os.path.join(BUILD, 'icon.ico'), sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+icon(512).save(os.path.join(ROOT, 'electron', 'icon.png'))

@@ -2,6 +2,7 @@
 // libera los fotogramas. Sirve también para recuperar sesiones interrumpidas.
 import { countFrames, deleteFrames, getFrame, putSession, putVideo, type SessionRecord } from '../storage/db';
 import { timelapseDurationMs } from '../lib/timelapse';
+import { saveVideoToDisk } from '../desktop/sync';
 
 export async function finalizeSession(
   session: SessionRecord,
@@ -25,9 +26,11 @@ export async function finalizeSession(
       onProgress,
     });
     await putVideo(session.id, result.blob);
+    const file = await saveVideoToDisk(base, result.blob, result.ext);
     const done: SessionRecord = {
       ...base,
       status: 'done',
+      file,
       video: {
         mime: result.mime,
         ext: result.ext,

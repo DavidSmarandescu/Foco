@@ -95,7 +95,7 @@ function watch(page, errs) {
   await page.reload({ waitUntil: 'load' });
   await page.getByRole('button', { name: 'Empezar sesión' }).waitFor({ timeout: 15000 });
   await page.waitForTimeout(3000);
-  log('offline chip:', await page.locator('.stage-chip').innerText().catch(() => '-'), '| pill:', await page.locator('.pill-quiet').innerText().catch(() => '-'));
+  log('offline chip:', await page.locator('.stage-chip').innerText().catch(() => '-'), '| pill:', await page.locator('.pill-quiet:not(.download-pill)').innerText().catch(() => '-'));
   await page.goto(URL_ + '#/portal');
   await page.waitForTimeout(800);
   log('offline portal sessions:', await page.locator('.session').count());

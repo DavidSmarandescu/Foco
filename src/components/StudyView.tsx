@@ -12,6 +12,7 @@ import { fitSize, shouldCapture, speedup, timelapseDurationMs } from '../lib/tim
 import { formatClock, formatDateLong, formatDuration, formatTimeOfDay } from '../lib/time';
 import { downloadBlob, videoFilename } from '../lib/download';
 import { deleteSession, getVideo, putFrame, putSession, type SessionRecord } from '../storage/db';
+import { desktop, DOWNLOAD_URL } from '../desktop/bridge';
 
 type Phase = 'intro' | 'opening' | 'sleep' | 'error' | 'ready' | 'recording' | 'encoding' | 'done';
 type DetectorStatus = 'idle' | 'loading' | 'face' | 'motion';
@@ -484,7 +485,7 @@ export function StudyView({ visible, settings, sessions, onChange, go }: Props) 
               <button className="btn btn-lg" onClick={enableCamera}>
                 <Camera width={18} height={18} /> Activar cámara
               </button>
-              <small>Tu navegador te pedirá permiso para usar la cámara.</small>
+              <small>{desktop ? 'Tu sistema te pedirá permiso para usar la cámara.' : 'Tu navegador te pedirá permiso para usar la cámara.'}</small>
             </div>
           )}
 
@@ -665,7 +666,7 @@ export function StudyView({ visible, settings, sessions, onChange, go }: Props) 
           {phase === 'encoding' && (
             <div className="running">
               <p className="eyebrow">Sesión terminada</p>
-              <p className="muted">Se está generando el vídeo en tu dispositivo. No cierres la pestaña.</p>
+              <p className="muted">Se está generando el vídeo en tu dispositivo. {desktop ? 'No cierres la app.' : 'No cierres la pestaña.'}</p>
             </div>
           )}
 
@@ -705,6 +706,17 @@ export function StudyView({ visible, settings, sessions, onChange, go }: Props) 
                   <Download width={18} height={18} /> Descargar vídeo
                 </button>
               )}
+              {!desktop && !finishError && sessions.filter((s) => !s.demo && s.status === 'done').length <= 1 && (
+                <p className="note">
+                  Tus sesiones viven en este navegador: si borras los datos del sitio, se pierden. Descarga el vídeo, haz
+                  copias desde Ajustes o usa la{' '}
+                  <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+                    app de escritorio
+                  </a>
+                  .
+                </p>
+              )}
+              {desktop && result.session.file && <p className="note">Vídeo guardado también en tu carpeta de Foco.</p>}
               {finishError && (
                 <button className="btn btn-block" onClick={() => runFinalize(result.session)}>
                   Reintentar

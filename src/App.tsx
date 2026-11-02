@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Flame, Logo, WifiOff } from './components/Icons';
+import { Download, Flame, Logo, WifiOff } from './components/Icons';
 import { StudyView } from './components/StudyView';
 import { PortalView } from './components/PortalView';
 import { SettingsView } from './components/SettingsView';
@@ -7,6 +7,8 @@ import { listSessions, type SessionRecord } from './storage/db';
 import { loadSettings, saveSettings, type Settings } from './lib/settings';
 import { currentStreak, dailyTotals } from './lib/streak';
 import { dayKey } from './lib/time';
+import { desktop, DOWNLOAD_URL } from './desktop/bridge';
+import { discardRestore, enableMirror, findRestoreOffer, restoreFromDisk, scheduleMirror, type RestoreOffer } from './desktop/sync';
 
 export type Route = 'estudiar' | 'portal' | 'ajustes';
 
@@ -28,6 +30,8 @@ export function App() {
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
+  const [restoreOffer, setRestoreOffer] = useState<RestoreOffer | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -42,6 +46,27 @@ export function App() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Escritorio: antes de reflejar nada en disco, mira si la carpeta tiene sesiones
+  // que este equipo no tiene (p. ej. tras reinstalar) y ofrece recuperarlas.
+  useEffect(() => {
+    if (!desktop || !loaded) return;
+    let cancelled = false;
+    findRestoreOffer(sessions).then((offer) => {
+      if (cancelled) return;
+      if (offer) setRestoreOffer(offer);
+      else enableMirror();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Solo una vez, con la primera lista de sesiones.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
+
+  useEffect(() => {
+    if (loaded) scheduleMirror(sessions, settings);
+  }, [loaded, sessions, settings]);
 
   useEffect(() => {
     const onHash = () => setRoute(readRoute());
@@ -70,6 +95,30 @@ export function App() {
     saveSettings(s);
   }, []);
 
+  const acceptRestore = async () => {
+    if (!restoreOffer) return;
+    setRestoring(true);
+    try {
+      const r = await restoreFromDisk(restoreOffer);
+      if (r.settings) setSettings(r.settings);
+      setToast(`Recuperadas ${r.sessions} sesiones y ${r.videos} vídeos.`);
+    } catch (e) {
+      console.error(e);
+      setToast('No se pudo restaurar todo desde la carpeta.');
+    } finally {
+      setRestoreOffer(null);
+      setRestoring(false);
+      enableMirror();
+      refresh();
+    }
+  };
+
+  const declineRestore = async () => {
+    await discardRestore();
+    setRestoreOffer(null);
+    enableMirror();
+  };
+
   const go = useCallback((r: Route) => {
     location.hash = `/${r}`;
   }, []);
@@ -95,7 +144,12 @@ export function App() {
           ))}
         </nav>
         <div className="topbar-end">
-          {!online && (
+          {!desktop && (
+            <a className="pill pill-quiet download-pill" href={DOWNLOAD_URL} target="_blank" rel="noreferrer" title="Foco para Mac, Windows y Linux: tus datos en tu ordenador">
+              <Download width={15} height={15} /> <span>Descargar app</span>
+            </a>
+          )}
+          {!online && !desktop && (
             <span className="pill pill-quiet" title="Sin conexión: Foco sigue funcionando">
               <WifiOff width={15} height={15} /> Sin conexión
             </span>
@@ -113,6 +167,24 @@ export function App() {
       </header>
 
       <main>
+        {restoreOffer && (
+          <div className="banner" role="alert">
+            <div>
+              <strong>
+                Hay {restoreOffer.sessions.length} {restoreOffer.sessions.length === 1 ? 'sesión guardada' : 'sesiones guardadas'} en tu carpeta de Foco
+              </strong>
+              <span>{restoreOffer.dataDir}</span>
+            </div>
+            <div className="banner-actions">
+              <button className="btn btn-quiet" onClick={declineRestore} disabled={restoring}>
+                Empezar de cero
+              </button>
+              <button className="btn" onClick={acceptRestore} disabled={restoring}>
+                {restoring ? 'Restaurando…' : 'Restaurar'}
+              </button>
+            </div>
+          </div>
+        )}
         {/* La vista de estudio no se desmonta: una sesión en curso sigue grabando aunque mires el portal. */}
         <div hidden={route !== 'estudiar'}>
           <StudyView
@@ -132,7 +204,7 @@ export function App() {
       </main>
 
       <footer className="footer">
-        <span>Tus vídeos y datos no salen de este dispositivo.</span>
+        <span>{desktop ? 'Tus vídeos y datos se guardan en tu ordenador.' : 'Tus vídeos y datos no salen de este dispositivo.'}</span>
         <span>Foco · funciona sin conexión</span>
       </footer>
 
