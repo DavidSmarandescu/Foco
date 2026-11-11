@@ -153,3 +153,11 @@ La cámara solo funciona en `localhost` o HTTPS. En el portal, **«Ver con datos
 - Música o sonido ambiente en el vídeo final.
 - Sincronización opcional y cifrada de extremo a extremo entre dispositivos.
 - Salas de estudio para academias.
+
+## Licencia
+
+Copyright (C) 2026 David Smarandescu
+
+Foco es software libre: puedes usarlo, estudiarlo, modificarlo y redistribuirlo bajo los términos de la **Licencia Pública General de GNU (GPL), versión 3 o posterior**, publicada por la Free Software Foundation. Si distribuyes una versión modificada, también debe publicarse bajo la GPL con su código fuente.
+
+Se distribuye SIN NINGUNA GARANTÍA. Consulta el archivo [LICENSE](LICENSE) para ver el texto completo.

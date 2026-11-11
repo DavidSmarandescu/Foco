@@ -3,6 +3,7 @@
   "productName": "Foco",
   "private": true,
   "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
   "description": "Graba tus sesiones de estudio en cámara rápida y lleva tu racha. Sin conexión y sin servidores.",
   "author": "David Smarandescu",
   "homepage": "https://github.com/DavidSmarandescu/Foco",
